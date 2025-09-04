@@ -43,10 +43,12 @@ st.set_page_config(
 st.markdown("""
 <style>
     .main-header {
-        font-size: 3rem;
-        color: #1f77b4;
-        text-align: center;
-        margin-bottom: 2rem;
+        font-size: 2.5rem;
+        color: #2c3e50;
+        text-align: left;
+        margin-bottom: 1rem;
+        font-weight: 600;
+        letter-spacing: -0.5px;
     }
     .chat-message {
         padding: 1rem;
@@ -333,10 +335,25 @@ def display_bode_analysis(bode_data):
 
 def chat_interface():
     """Main chat interface"""
-    st.markdown('<h1 class="main-header">🔌 KiCad AI Interactive Chat</h1>', unsafe_allow_html=True)
+    # Header with logo and title
+    col1, col2 = st.columns([1, 3])
+    with col1:
+        st.image("logo.png", width=100)
+    with col2:
+        st.markdown('<h1 class="main-header">KiCad AI Interactive Chat</h1>', unsafe_allow_html=True)
+        st.markdown("**Version 1.0** | **Author:** Jérémy Noverraz | **SwissLabs, Lausanne**")
     
     # Sidebar for file uploads
     with st.sidebar:
+        # Logo and branding
+        st.image("logo.png", width=200)
+        st.markdown("### KiCad AI Interactive Chat")
+        st.markdown("**Version 1.0**")
+        st.markdown("**Author:** Jérémy Noverraz")
+        st.markdown("**SwissLabs, Lausanne**")
+        st.markdown("[![GitHub](https://img.shields.io/badge/GitHub-iyotee-blue?style=flat&logo=github)](https://github.com/iyotee)")
+        st.markdown("---")
+        
         st.header("📁 Project Files")
         
         # File uploaders
@@ -552,13 +569,67 @@ def generate_chat_response(prompt, project_data, analysis_results):
 def analyze_power_section(project_data, analysis_results):
     """Analyze power supply section"""
     bom = project_data['bom']
-    power_components = bom[bom['ref'].str.contains('U|Q|D', na=False)]
+    netlist = project_data['netlist']
+    
+    # Find power-related components by multiple criteria
+    power_components = []
+    
+    # 1. Components with power-related references (U, Q, D, V, R, C for power)
+    power_refs = bom[bom['ref'].str.contains('U|Q|D|V|R|C', na=False)]
+    
+    # 2. Components with power-related values
+    power_values = bom[bom['value'].str.contains('V|A|W|mW|uF|mF|F|k|M|G|T', na=False, case=False)]
+    
+    # 3. Components with power-related MPNs
+    power_mpns = bom[bom['mpn'].str.contains('regulator|converter|transformer|power|supply|voltage|current', na=False, case=False)]
+    
+    # Combine all power components
+    all_power = pd.concat([power_refs, power_values, power_mpns]).drop_duplicates()
+    
+    # Also check netlist for voltage sources and power components
+    voltage_sources = []
+    if 'components' in netlist:
+        for comp in netlist['components']:
+            ref = comp.get('ref', '')
+            value = comp.get('value', '')
+            comp_type = comp.get('type', '')
+            
+            # Check for voltage sources (V, I, E, H, F, G)
+            if comp_type in ['V', 'I', 'E', 'H', 'F', 'G']:
+                voltage_sources.append({
+                    'ref': ref,
+                    'value': value,
+                    'type': comp_type,
+                    'mpn': 'SPICE Source'
+                })
     
     response = "## Power Supply Analysis\n\n"
-    response += f"Found {len(power_components)} power-related components:\n\n"
+    response += f"Found {len(all_power)} power-related components in BOM:\n\n"
     
-    for _, comp in power_components.iterrows():
-        response += f"- **{comp['ref']}**: {comp['value']} ({comp['mpn']})\n"
+    if len(all_power) > 0:
+        for _, comp in all_power.iterrows():
+            response += f"- **{comp['ref']}**: {comp['value']} ({comp.get('mpn', 'N/A')})\n"
+    
+    if voltage_sources:
+        response += f"\nFound {len(voltage_sources)} voltage sources in netlist:\n\n"
+        for source in voltage_sources:
+            response += f"- **{source['ref']}**: {source['value']} ({source['type']} source)\n"
+    
+    # Analyze power nets
+    power_nets = []
+    if 'nets' in netlist:
+        for net in netlist['nets']:
+            net_name = net.get('name', '')
+            if any(keyword in net_name.upper() for keyword in ['VCC', 'VDD', 'VSS', 'GND', 'POWER', 'VIN', 'VOUT', 'VREF', 'VBIAS']):
+                power_nets.append(net_name)
+    
+    if power_nets:
+        response += f"\nPower-related nets found: {', '.join(power_nets[:10])}\n"
+        if len(power_nets) > 10:
+            response += f" (and {len(power_nets) - 10} more...)\n"
+    
+    if len(all_power) == 0 and len(voltage_sources) == 0:
+        response += "\n⚠️ No obvious power supply components detected. This might be a digital-only circuit or the power components are not clearly identified in the netlist.\n"
     
     return response
 

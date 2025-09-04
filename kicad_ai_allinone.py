@@ -142,7 +142,7 @@ def read_spice_netlist(netlist_path: str) -> Dict[str, Any]:
             for part in parts[1:]:
                 if part and not part.startswith('+') and not part.startswith('-'):
                     # Check if it looks like a value (number or common component values)
-                    if any(char.isdigit() for char in part) or part.upper() in ['R', 'C', 'L', 'D', 'Q', 'U', 'X']:
+                    if any(char.isdigit() for char in part) or part.upper() in ['R', 'C', 'L', 'D', 'Q', 'U', 'X', 'V', 'I', 'F', 'G', 'H', 'E']:
                         value = part
                         break
         
@@ -160,6 +160,18 @@ def read_spice_netlist(netlist_path: str) -> Dict[str, Any]:
                 value = "2N3904"
             elif comp_type == 'U':
                 value = "IC"
+            elif comp_type == 'V':
+                value = "5V"  # Voltage source
+            elif comp_type == 'I':
+                value = "1A"  # Current source
+            elif comp_type == 'F':
+                value = "1A"  # Current controlled current source
+            elif comp_type == 'G':
+                value = "1S"  # Voltage controlled current source
+            elif comp_type == 'H':
+                value = "1V"  # Current controlled voltage source
+            elif comp_type == 'E':
+                value = "1V"  # Voltage controlled voltage source
             else:
                 value = "Unknown"
         
@@ -464,14 +476,21 @@ def run_bode_from_spice(spice_netlist_path: str,
 # IA Hugging Face
 # =========================
 
-# Transformers import made optional
-try:
-    from transformers import pipeline
-    TRANSFORMERS_AVAILABLE = True
-except Exception as e:
-    print(f"⚠️ Transformers not available: {e}")
-    TRANSFORMERS_AVAILABLE = False
-    pipeline = None
+# Transformers import - made optional to avoid conflicts
+TRANSFORMERS_AVAILABLE = False
+pipeline = None
+
+def _load_transformers():
+    """Lazy load transformers to avoid import conflicts"""
+    global TRANSFORMERS_AVAILABLE, pipeline
+    if pipeline is None:
+        try:
+            from transformers import pipeline
+            TRANSFORMERS_AVAILABLE = True
+        except Exception as e:
+            print(f"⚠️ Transformers not available: {e}")
+            TRANSFORMERS_AVAILABLE = False
+    return TRANSFORMERS_AVAILABLE
 
 def build_prompt(project_name: str, bom: pd.DataFrame, netlist: Dict[str, Any],
                  ops: Dict[str, Dict[str, float]], bode: Optional[Dict[str, Any]]) -> str:
@@ -524,6 +543,9 @@ Respond in Markdown, clear and concise. Cite refs when you report a point.
     return prompt
 
 def run_hf_model(model_id: str, prompt: str, device: str = "cpu") -> str:
+    if not _load_transformers():
+        return "AI analysis not available - transformers library not loaded"
+    
     try:
         if "flan" in model_id.lower() or "t5" in model_id.lower():
             nlp = pipeline("text2text-generation", model=model_id, device=-1 if device=="cpu" else 0)
@@ -535,6 +557,83 @@ def run_hf_model(model_id: str, prompt: str, device: str = "cpu") -> str:
             return out[0]["generated_text"]
     except Exception as e:
         return f"AI Error: {e}"
+
+# =========================
+# Enhanced Analysis Functions
+# =========================
+
+def analyze_component_types(netlist: Dict[str, Any], bom: pd.DataFrame) -> str:
+    """Analyze component types and their distribution"""
+    components = netlist.get('components', [])
+    
+    # Count component types
+    type_counts = {}
+    for comp in components:
+        comp_type = comp.get('type', 'Unknown')
+        type_counts[comp_type] = type_counts.get(comp_type, 0) + 1
+    
+    # Analyze by value patterns
+    value_analysis = {}
+    for comp in components:
+        value = comp.get('value', '')
+        if 'V' in value.upper():
+            value_analysis['Voltage'] = value_analysis.get('Voltage', 0) + 1
+        elif 'A' in value.upper():
+            value_analysis['Current'] = value_analysis.get('Current', 0) + 1
+        elif 'F' in value.upper() or 'uF' in value.upper():
+            value_analysis['Capacitor'] = value_analysis.get('Capacitor', 0) + 1
+        elif 'H' in value.upper() or 'mH' in value.upper():
+            value_analysis['Inductor'] = value_analysis.get('Inductor', 0) + 1
+        elif 'k' in value.upper() or 'M' in value.upper():
+            value_analysis['Resistor'] = value_analysis.get('Resistor', 0) + 1
+    
+    return f"""
+Component Types: {dict(sorted(type_counts.items()))}
+Value Analysis: {dict(sorted(value_analysis.items()))}
+"""
+
+def analyze_power_supply_components(netlist: Dict[str, Any], bom: pd.DataFrame) -> str:
+    """Analyze power supply related components"""
+    components = netlist.get('components', [])
+    
+    power_components = []
+    voltage_sources = []
+    
+    for comp in components:
+        ref = comp.get('ref', '')
+        value = comp.get('value', '')
+        comp_type = comp.get('type', '')
+        
+        # Check for power components
+        if comp_type in ['V', 'I', 'E', 'H', 'F', 'G']:
+            voltage_sources.append(f"{ref}: {value}")
+        elif any(keyword in value.upper() for keyword in ['V', 'A', 'W', 'mW']):
+            power_components.append(f"{ref}: {value}")
+    
+    return f"""
+Voltage Sources: {voltage_sources[:10]}
+Power Components: {power_components[:10]}
+"""
+
+def analyze_signal_paths(netlist: Dict[str, Any]) -> str:
+    """Analyze signal paths and connections"""
+    nets = netlist.get('nets', [])
+    
+    signal_nets = []
+    power_nets = []
+    
+    for net in nets:
+        net_name = net.get('name', '')
+        if any(keyword in net_name.upper() for keyword in ['VCC', 'VDD', 'VSS', 'GND', 'POWER']):
+            power_nets.append(net_name)
+        elif any(keyword in net_name.upper() for keyword in ['SIG', 'DATA', 'CLK', 'IN', 'OUT']):
+            signal_nets.append(net_name)
+    
+    return f"""
+Power Nets: {power_nets[:10]}
+Signal Nets: {signal_nets[:10]}
+Total Nets: {len(nets)}
+"""
 
 # =========================
 # Rapport
@@ -550,7 +649,15 @@ def make_report(project_name: str,
     out.append(f"# AI Analysis Report — {project_name}\n")
     out.append("## Summary")
     out.append(f"- **Components:** {len(netlist.get('components', []))}")
-    out.append(f"- **Nets:** {len(netlist.get('nets', []))}\n")
+    out.append(f"- **Nets:** {len(netlist.get('nets', []))}")
+    out.append(f"- **BOM Items:** {len(bom_df)}")
+    
+    # Add enhanced analysis
+    out.append("\n## Circuit Analysis")
+    out.append(analyze_component_types(netlist, bom_df))
+    out.append(analyze_power_supply_components(netlist, bom_df))
+    out.append(analyze_signal_paths(netlist))
+    out.append("")
 
     if bode:
         out.append("## Bode Simulation (summary)")
