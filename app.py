@@ -97,23 +97,42 @@ def initialize_apis():
 def load_project_files(netlist_file, bom_file, operating_file=None):
     """Load and process KiCad project files"""
     try:
-        # Read netlist
-        netlist = read_netlist(netlist_file)
-        
-        # Read BOM
-        bom_df = read_bom(bom_file)
-        
-        # Read operating conditions if provided
-        operating_conditions = {}
-        if operating_file:
-            operating_conditions = load_operating_conditions(operating_file)
-        
-        return {
-            'netlist': netlist,
-            'bom': bom_df,
-            'operating_conditions': operating_conditions,
-            'project_name': Path(netlist_file).stem
-        }
+        # Save uploaded files temporarily
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Save netlist
+            netlist_path = os.path.join(temp_dir, netlist_file.name)
+            with open(netlist_path, "wb") as f:
+                f.write(netlist_file.getbuffer())
+            
+            # Save BOM
+            bom_path = os.path.join(temp_dir, bom_file.name)
+            with open(bom_path, "wb") as f:
+                f.write(bom_file.getbuffer())
+            
+            # Save operating conditions if provided
+            operating_path = None
+            if operating_file:
+                operating_path = os.path.join(temp_dir, operating_file.name)
+                with open(operating_path, "wb") as f:
+                    f.write(operating_file.getbuffer())
+            
+            # Read netlist
+            netlist = read_netlist(netlist_path)
+            
+            # Read BOM
+            bom_df = read_bom(bom_path)
+            
+            # Read operating conditions if provided
+            operating_conditions = {}
+            if operating_path:
+                operating_conditions = load_operating_conditions(operating_path)
+            
+            return {
+                'netlist': netlist,
+                'bom': bom_df,
+                'operating_conditions': operating_conditions,
+                'project_name': Path(netlist_file.name).stem
+            }
     except Exception as e:
         st.error(f"Error loading project files: {str(e)}")
         return None
