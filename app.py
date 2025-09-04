@@ -14,8 +14,11 @@ import tempfile
 from pathlib import Path
 import plotly.graph_objects as go
 import plotly.express as px
+from plotly.subplots import make_subplots
 from datetime import datetime
 import base64
+import numpy as np
+from typing import Dict, Any
 
 # Import our modules
 from utils.api_clients import APIManager
@@ -193,11 +196,18 @@ def analyze_soa(bom_df, operating_conditions):
     
     soa_results = {}
     
+    # Debug: Print BOM info
+    print(f"[DEBUG] SOA Analysis: BOM has {len(bom_df)} rows")
+    print(f"[DEBUG] Operating conditions keys: {list(operating_conditions.keys())}")
+    
     for _, row in bom_df.iterrows():
         ref = str(row.get('ref', '')).strip()
         if not ref:
+            print(f"[DEBUG] Skipping row with empty ref: {row.to_dict()}")
             continue
             
+        print(f"[DEBUG] Processing component: {ref}")
+        
         # Extract SOA from datasheet if available
         datasheet_path = row.get('datasheet_path', '')
         soa_data = {}
@@ -239,6 +249,7 @@ def analyze_soa(bom_df, operating_conditions):
         
         # Check compliance
         component_conditions = operating_conditions.get(ref, {})
+        print(f"[DEBUG] Component {ref} conditions: {component_conditions}")
         if not component_conditions:
             # Use default operating conditions for analysis
             component_conditions = {
@@ -246,8 +257,12 @@ def analyze_soa(bom_df, operating_conditions):
                 'current': 0.1,
                 'power': 0.5
             }
+            print(f"[DEBUG] Using default conditions for {ref}: {component_conditions}")
         
         compliance_results = soa_checker.check_compliance(soa_data, component_conditions)
+        
+        print(f"[DEBUG] Component {ref} SOA data: {soa_data}")
+        print(f"[DEBUG] Component {ref} compliance: {compliance_results}")
         
         soa_results[ref] = {
             'soa_data': soa_data,
@@ -255,6 +270,7 @@ def analyze_soa(bom_df, operating_conditions):
             'compliance': compliance_results
         }
     
+    print(f"[DEBUG] SOA Analysis complete: {len(soa_results)} components analyzed")
     return soa_results
 
 def run_simulation(project_data):
@@ -325,7 +341,7 @@ def run_ai_analysis(project_data, bode_data=None):
     if not AI_AVAILABLE or not AIAnalyzer:
         return {"error": "AI features not available"}
         
-    ai_analyzer = AIAnalyzer("google/flan-t5-large", "cpu")
+    ai_analyzer = AIAnalyzer("google/flan-t5-large", "cuda")
     
     if not ai_analyzer.available:
         return {"error": "AI model failed to load"}
@@ -547,7 +563,7 @@ def chat_interface():
             st.metric("BOM Items", len(project_data['bom']))
         
         # Tabs for different views
-        tab1, tab2, tab3, tab4 = st.tabs(["💬 Chat", "🔧 Components", "📊 Analysis", "📄 Report"])
+        tab1, tab2, tab3, tab4, tab5 = st.tabs(["💬 Chat", "🔧 Components", "📊 Analysis", "🎯 3D Visualization", "📄 Report"])
         
         with tab1:
             # Chat interface
@@ -630,6 +646,68 @@ def chat_interface():
                 st.markdown(st.session_state.analysis_results['ai'])
         
         with tab4:
+            # 3D Visualization
+            st.subheader("🎯 3D Circuit Visualization")
+            
+            if 'project_data' in st.session_state and st.session_state.project_data:
+                project_data = st.session_state.project_data
+                
+                # 3D Circuit Layout
+                st.subheader("🔧 3D Circuit Layout")
+                circuit_3d = create_3d_circuit_visualization(project_data['netlist'], project_data['bom'])
+                st.plotly_chart(circuit_3d, use_container_width=True)
+                
+                # 3D Power Analysis
+                if 'simulation' in st.session_state.analysis_results:
+                    st.subheader("⚡ 3D Power Analysis")
+                    power_3d = create_3d_power_analysis(st.session_state.analysis_results['simulation'])
+                    if power_3d:
+                        st.plotly_chart(power_3d, use_container_width=True)
+                    else:
+                        st.warning("No simulation data available for 3D power visualization")
+                
+                # 3D SOA Analysis
+                if 'soa' in st.session_state.analysis_results:
+                    st.subheader("🛡️ 3D SOA Safety Analysis")
+                    soa_3d = create_3d_soa_visualization(st.session_state.analysis_results['soa'])
+                    if soa_3d:
+                        st.plotly_chart(soa_3d, use_container_width=True)
+                    else:
+                        st.warning("No SOA data available for 3D visualization")
+                
+                # Interactive controls
+                st.subheader("🎮 Interactive Controls")
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    if st.button("🔄 Refresh 3D Views"):
+                        st.rerun()
+                
+                with col2:
+                    show_nets = st.checkbox("Show Net Connections", value=True)
+                
+                with col3:
+                    show_labels = st.checkbox("Show Component Labels", value=True)
+                
+                # Legend
+                st.subheader("📋 Component Legend")
+                legend_data = {
+                    'Resistors (R)': '#FF6B6B',
+                    'Capacitors (C)': '#4ECDC4',
+                    'Inductors (L)': '#45B7D1',
+                    'Diodes (D)': '#96CEB4',
+                    'Transistors (Q)': '#FFEAA7',
+                    'ICs (U)': '#DDA0DD',
+                    'Voltage Sources (V)': '#FFB347',
+                    'Current Sources (I)': '#98D8C8'
+                }
+                
+                for comp_type, color in legend_data.items():
+                    st.markdown(f"<span style='color: {color}'>●</span> {comp_type}", unsafe_allow_html=True)
+            else:
+                st.info("Please upload and analyze your circuit files to see 3D visualizations")
+        
+        with tab5:
             # Full report
             st.subheader("📄 Full Report")
             
@@ -839,6 +917,299 @@ def explain_circuit(project_data, analysis_results):
         response += "- Many resistors suggest analog signal conditioning\n"
     
     return response
+
+# =========================
+# 3D Visualization Functions
+# =========================
+
+def create_3d_circuit_visualization(netlist: Dict[str, Any], bom_df: pd.DataFrame):
+    """Create 3D visualization of the circuit"""
+    components = netlist.get('components', [])
+    nets = netlist.get('nets', [])
+    
+    # Create 3D scatter plot for components
+    fig = go.Figure()
+    
+    # Component positions (simulated PCB layout)
+    x_pos = []
+    y_pos = []
+    z_pos = []
+    component_names = []
+    component_types = []
+    component_values = []
+    colors = []
+    
+    # Generate positions for components
+    for i, comp in enumerate(components):
+        # Simulate PCB layout with some randomness
+        x = (i % 10) * 2 + np.random.uniform(-0.5, 0.5)
+        y = (i // 10) * 2 + np.random.uniform(-0.5, 0.5)
+        z = 0  # All components on same layer initially
+        
+        x_pos.append(x)
+        y_pos.append(y)
+        z_pos.append(z)
+        
+        ref = comp.get('ref', f'C{i}')
+        value = comp.get('value', 'Unknown')
+        comp_type = comp.get('type', 'X')
+        
+        component_names.append(ref)
+        component_types.append(comp_type)
+        component_values.append(value)
+        
+        # Color by component type
+        color_map = {
+            'R': '#FF6B6B',  # Red for resistors
+            'C': '#4ECDC4',  # Teal for capacitors
+            'L': '#45B7D1',  # Blue for inductors
+            'D': '#96CEB4',  # Green for diodes
+            'Q': '#FFEAA7',  # Yellow for transistors
+            'U': '#DDA0DD',  # Purple for ICs
+            'V': '#FFB347',  # Orange for voltage sources
+            'I': '#98D8C8',  # Mint for current sources
+        }
+        colors.append(color_map.get(comp_type, '#95A5A6'))  # Gray for unknown
+    
+    # Add components as 3D scatter
+    fig.add_trace(go.Scatter3d(
+        x=x_pos,
+        y=y_pos,
+        z=z_pos,
+        mode='markers+text',
+        marker=dict(
+            size=8,
+            color=colors,
+            opacity=0.8,
+            line=dict(width=2, color='black')
+        ),
+        text=component_names,
+        textposition="top center",
+        name="Components",
+        hovertemplate="<b>%{text}</b><br>" +
+                     "Type: %{customdata[0]}<br>" +
+                     "Value: %{customdata[1]}<br>" +
+                     "Position: (%{x:.1f}, %{y:.1f}, %{z:.1f})<br>" +
+                     "<extra></extra>",
+        customdata=list(zip(component_types, component_values))
+    ))
+    
+    # Add nets as 3D lines (limit to first 20 for performance)
+    for net in nets[:20]:
+        net_name = net.get('name', '')
+        nodes = net.get('nodes', [])
+        
+        if len(nodes) >= 2:
+            # Find component positions for this net
+            net_x = []
+            net_y = []
+            net_z = []
+            
+            for node in nodes:
+                ref = node.get('ref', '')
+                # Find component position
+                for i, comp_name in enumerate(component_names):
+                    if comp_name == ref:
+                        net_x.append(x_pos[i])
+                        net_y.append(y_pos[i])
+                        net_z.append(z_pos[i])
+                        break
+            
+            if len(net_x) >= 2:
+                # Add net as line
+                fig.add_trace(go.Scatter3d(
+                    x=net_x,
+                    y=net_y,
+                    z=net_z,
+                    mode='lines',
+                    line=dict(
+                        color='rgba(100,100,100,0.5)',
+                        width=2
+                    ),
+                    name=f"Net: {net_name}",
+                    showlegend=False,
+                    hoverinfo='skip'
+                ))
+    
+    # Update layout
+    fig.update_layout(
+        title="3D Circuit Visualization",
+        scene=dict(
+            xaxis_title="X Position (mm)",
+            yaxis_title="Y Position (mm)",
+            zaxis_title="Z Position (mm)",
+            camera=dict(
+                eye=dict(x=1.5, y=1.5, z=1.5)
+            )
+        ),
+        width=800,
+        height=600
+    )
+    
+    return fig
+
+def create_3d_power_analysis(simulation_results: Dict[str, Any]):
+    """Create 3D power consumption visualization"""
+    if not simulation_results.get('available', False):
+        return None
+    
+    component_counts = simulation_results.get('component_counts', {})
+    power_consumption = simulation_results.get('estimated_power_consumption', 0)
+    
+    # Create 3D bar chart
+    fig = go.Figure()
+    
+    # Prepare data for 3D bars
+    x_pos = []
+    y_pos = []
+    z_pos = []
+    values = []
+    colors = []
+    labels = []
+    
+    for i, (comp_type, count) in enumerate(component_counts.items()):
+        x_pos.append(i % 4)
+        y_pos.append(i // 4)
+        z_pos.append(0)
+        values.append(count)
+        labels.append(comp_type)
+        
+        # Color by component type
+        color_map = {
+            'R': '#FF6B6B',
+            'C': '#4ECDC4',
+            'L': '#45B7D1',
+            'D': '#96CEB4',
+            'Q': '#FFEAA7',
+            'U': '#DDA0DD',
+            'V': '#FFB347',
+        }
+        colors.append(color_map.get(comp_type, '#95A5A6'))
+    
+    # Add 3D bars
+    fig.add_trace(go.Scatter3d(
+        x=x_pos,
+        y=y_pos,
+        z=values,
+        mode='markers',
+        marker=dict(
+            size=values,
+            sizemode='diameter',
+            sizeref=2,
+            color=colors,
+            opacity=0.8,
+            line=dict(width=2, color='black')
+        ),
+        text=labels,
+        textposition="top center",
+        name="Component Count",
+        hovertemplate="<b>%{text}</b><br>Count: %{z}<br><extra></extra>"
+    ))
+    
+    # Add power consumption as surface
+    if power_consumption > 0:
+        x_surf = np.linspace(0, 3, 10)
+        y_surf = np.linspace(0, 3, 10)
+        X, Y = np.meshgrid(x_surf, y_surf)
+        Z = np.full_like(X, power_consumption * 10)  # Scale for visibility
+        
+        fig.add_trace(go.Surface(
+            x=X, y=Y, z=Z,
+            colorscale='Viridis',
+            opacity=0.3,
+            name=f"Power: {power_consumption:.2f}W"
+        ))
+    
+    fig.update_layout(
+        title="3D Power Analysis",
+        scene=dict(
+            xaxis_title="Component Type",
+            yaxis_title="Category",
+            zaxis_title="Count / Power",
+            camera=dict(
+                eye=dict(x=1.5, y=1.5, z=1.5)
+            )
+        ),
+        width=800,
+        height=600
+    )
+    
+    return fig
+
+def create_3d_soa_visualization(soa_results: Dict[str, Any]):
+    """Create 3D SOA safety visualization"""
+    if not soa_results:
+        return None
+    
+    fig = go.Figure()
+    
+    # Prepare SOA data
+    x_vals = []
+    y_vals = []
+    z_vals = []
+    colors = []
+    labels = []
+    
+    for ref, soa_info in soa_results.items():
+        soa_data = soa_info.get('soa_data', {})
+        compliance = soa_info.get('compliance', [])
+        
+        if soa_data:
+            # Extract SOA parameters
+            vds_max = soa_data.get('Vds_max', 0)
+            id_max = soa_data.get('Id_max', 0)
+            pd_max = soa_data.get('Pd_max', 0)
+            
+            x_vals.append(vds_max)
+            y_vals.append(id_max)
+            z_vals.append(pd_max)
+            labels.append(ref)
+            
+            # Color by compliance status
+            if any("❌" in str(c) for c in compliance):
+                colors.append('#FF6B6B')  # Red for violations
+            elif any("⚠️" in str(c) for c in compliance):
+                colors.append('#FFEAA7')  # Yellow for warnings
+            else:
+                colors.append('#96CEB4')  # Green for OK
+    
+    if x_vals:
+        fig.add_trace(go.Scatter3d(
+            x=x_vals,
+            y=y_vals,
+            z=z_vals,
+            mode='markers+text',
+            marker=dict(
+                size=10,
+                color=colors,
+                opacity=0.8,
+                line=dict(width=2, color='black')
+            ),
+            text=labels,
+            textposition="top center",
+            name="SOA Analysis",
+            hovertemplate="<b>%{text}</b><br>" +
+                         "Vds_max: %{x:.1f}V<br>" +
+                         "Id_max: %{y:.1f}A<br>" +
+                         "Pd_max: %{z:.1f}W<br>" +
+                         "<extra></extra>"
+        ))
+    
+    fig.update_layout(
+        title="3D SOA Safety Analysis",
+        scene=dict(
+            xaxis_title="Vds_max (V)",
+            yaxis_title="Id_max (A)",
+            zaxis_title="Pd_max (W)",
+            camera=dict(
+                eye=dict(x=1.5, y=1.5, z=1.5)
+            )
+        ),
+        width=800,
+        height=600
+    )
+    
+    return fig
 
 if __name__ == "__main__":
     chat_interface()
