@@ -110,7 +110,11 @@ def load_project_files(netlist_file, bom_file, operating_file=None):
     """Load and process KiCad project files"""
     try:
         # Save uploaded files temporarily
-        with tempfile.TemporaryDirectory() as temp_dir:
+        # Use /tmp on Streamlit Cloud, tempfile on local
+        if os.getenv("STREAMLIT_CLOUD"):
+            temp_dir = "/tmp"
+        else:
+            temp_dir = tempfile.mkdtemp()
             # Save netlist
             netlist_path = os.path.join(temp_dir, netlist_file.name)
             with open(netlist_path, "wb") as f:
