@@ -538,6 +538,27 @@ def chat_interface():
                         with st.spinner("Enriching BOM with API data..."):
                             api_manager = initialize_apis()
                             enriched_bom = enrich_bom_with_apis(project_data['bom'], api_manager)
+                            
+                            # Debug: Show BOM columns and datasheet info
+                            st.info(f"🔍 BOM columns: {list(enriched_bom.columns)}")
+                            
+                            # Also try to get datasheets from existing BOM data
+                            datasheet_found = 0
+                            for i, row in enriched_bom.iterrows():
+                                # Check if datasheet is in original BOM data
+                                if 'datasheet' in row and row['datasheet'] and str(row['datasheet']).strip():
+                                    datasheet_found += 1
+                                    continue  # Already has datasheet
+                                
+                                # Try to find datasheet in other columns
+                                for col in ['datasheet_url', 'datasheet_path', 'pdf_url', 'documentation']:
+                                    if col in row and row[col] and str(row[col]).strip():
+                                        enriched_bom.loc[i, 'datasheet'] = str(row[col]).strip()
+                                        datasheet_found += 1
+                                        break
+                            
+                            st.info(f"📄 Found {datasheet_found} datasheets in BOM")
+                            
                             st.session_state.project_data['bom'] = enriched_bom
                         
                         # Run simulation
