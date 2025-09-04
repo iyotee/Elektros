@@ -467,6 +467,14 @@ def display_bode_analysis(bode_data):
 
 def chat_interface():
     """Main chat interface"""
+    # Initialize session state
+    if 'messages' not in st.session_state:
+        st.session_state.messages = []
+    if 'analysis_results' not in st.session_state:
+        st.session_state.analysis_results = {}
+    if 'project_data' not in st.session_state:
+        st.session_state.project_data = None
+    
     # Header with logo and title
     col1, col2 = st.columns([1, 3])
     with col1:
