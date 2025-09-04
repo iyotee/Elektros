@@ -9,11 +9,18 @@ import json
 from typing import Dict, Any, List, Optional
 import pandas as pd
 
-# Transformers imports
+# Transformers imports - made optional to avoid conflicts
+TRANSFORMERS_AVAILABLE = False
+pipeline = None
+AutoTokenizer = None
+AutoModelForCausalLM = None
+AutoModelForSeq2SeqLM = None
+
 try:
     from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM, AutoModelForSeq2SeqLM
     TRANSFORMERS_AVAILABLE = True
-except ImportError:
+except Exception as e:
+    print(f"⚠️ Transformers not available: {e}")
     TRANSFORMERS_AVAILABLE = False
 
 
@@ -31,8 +38,13 @@ class AIAnalyzer:
     
     def _load_model(self):
         """Load the AI model"""
+        if not TRANSFORMERS_AVAILABLE:
+            print("⚠️ Transformers not available - AI features disabled")
+            self.available = False
+            return
+            
         try:
-            if "flan" in self.model_id.lower() or "t5" in model_id.lower():
+            if "flan" in self.model_id.lower() or "t5" in self.model_id.lower():
                 self.pipeline = pipeline(
                     "text2text-generation",
                     model=self.model_id,

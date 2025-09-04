@@ -79,24 +79,119 @@ def read_bom(bom_path: str) -> pd.DataFrame:
     return df.fillna("")
 
 def read_netlist(netlist_path: str) -> Dict[str, Any]:
-    tree = etree.parse(netlist_path)
-    root = tree.getroot()
+    ext = os.path.splitext(netlist_path)[1].lower()
+    
+    if ext == ".xml":
+        # XML format (KiCad XML netlist)
+        tree = etree.parse(netlist_path)
+        root = tree.getroot()
+        comps = []
+        nets = []
+
+        # Find components
+        for c in root.findall(".//comp"):
+            ref = c.get("ref") or ""
+            value = c.findtext("value") or ""
+            fp = c.findtext("footprint") or ""
+            comps.append({"ref": ref, "value": value, "footprint": fp})
+
+        # Find nets
+        for n in root.findall(".//net"):
+            nets.append({
+                "name": n.get("name"),
+                "nodes": [{"ref": node.get("ref"), "pin": node.get("pin")} for node in n.findall("node")]
+            })
+        return {"components": comps, "nets": nets}
+    
+    elif ext == ".net":
+        # SPICE netlist format
+        return read_spice_netlist(netlist_path)
+    
+    else:
+        raise ValueError(f"Unsupported netlist format: {ext}. Supported: .xml, .net")
+
+def read_spice_netlist(netlist_path: str) -> Dict[str, Any]:
+    """Read SPICE format netlist (.net)"""
     comps = []
     nets = []
+    net_nodes = {}  # Track which components are connected to which nets
     
-    # Find components
-    for c in root.findall(".//comp"):
-        ref = c.get("ref") or ""
-        value = c.findtext("value") or ""
-        fp = c.findtext("footprint") or ""
-        comps.append({"ref": ref, "value": value, "footprint": fp})
+    with open(netlist_path, 'r', encoding='utf-8', errors='ignore') as f:
+        lines = f.readlines()
     
-    # Find nets
-    for n in root.findall(".//net"):
-        nets.append({
-            "name": n.get("name"),
-            "nodes": [{"ref": node.get("ref"), "pin": node.get("pin")} for node in n.findall("node")]
+    for line in lines:
+        line = line.strip()
+        if not line or line.startswith('*') or line.startswith('#'):
+            continue  # Skip comments and empty lines
+        
+        # Parse SPICE line
+        parts = line.split()
+        if len(parts) < 2:
+            continue
+            
+        # Extract component reference (first part)
+        ref = parts[0]
+        
+        # Determine component type and value
+        comp_type = ref[0].upper() if ref else 'X'
+        value = ""
+        
+        # Try to extract value from the line
+        if len(parts) > 1:
+            # Look for value in various positions
+            for part in parts[1:]:
+                if part and not part.startswith('+') and not part.startswith('-'):
+                    # Check if it looks like a value (number or common component values)
+                    if any(char.isdigit() for char in part) or part.upper() in ['R', 'C', 'L', 'D', 'Q', 'U', 'X']:
+                        value = part
+                        break
+        
+        # If no value found, use a default based on component type
+        if not value:
+            if comp_type == 'R':
+                value = "1k"
+            elif comp_type == 'C':
+                value = "100nF"
+            elif comp_type == 'L':
+                value = "1mH"
+            elif comp_type == 'D':
+                value = "1N4148"
+            elif comp_type == 'Q':
+                value = "2N3904"
+            elif comp_type == 'U':
+                value = "IC"
+            else:
+                value = "Unknown"
+        
+        comps.append({
+            "ref": ref,
+            "value": value,
+            "footprint": "",
+            "type": comp_type
         })
+        
+        # Extract net connections (remaining parts after ref and value)
+        net_connections = []
+        for i, part in enumerate(parts[1:], 1):
+            if part and not part.startswith('+') and not part.startswith('-'):
+                if i == 1:  # First connection
+                    net_connections.append(part)
+                elif part.isdigit() or part.startswith('N'):  # Net names
+                    net_connections.append(part)
+        
+        # Create nets from connections
+        for net_name in net_connections:
+            if net_name not in net_nodes:
+                net_nodes[net_name] = []
+            net_nodes[net_name].append({"ref": ref, "pin": "1"})
+    
+    # Convert net_nodes to nets format
+    for net_name, nodes in net_nodes.items():
+        nets.append({
+            "name": net_name,
+            "nodes": nodes
+        })
+    
     return {"components": comps, "nets": nets}
 
 # =========================
@@ -369,7 +464,14 @@ def run_bode_from_spice(spice_netlist_path: str,
 # IA Hugging Face
 # =========================
 
-from transformers import pipeline
+# Transformers import made optional
+try:
+    from transformers import pipeline
+    TRANSFORMERS_AVAILABLE = True
+except Exception as e:
+    print(f"⚠️ Transformers not available: {e}")
+    TRANSFORMERS_AVAILABLE = False
+    pipeline = None
 
 def build_prompt(project_name: str, bom: pd.DataFrame, netlist: Dict[str, Any],
                  ops: Dict[str, Dict[str, float]], bode: Optional[Dict[str, Any]]) -> str:

@@ -21,7 +21,14 @@ import base64
 from utils.api_clients import APIManager
 from utils.soa_extractor import SOAExtractor, SOAChecker
 from utils.spice_simulator import BodeAnalyzer
-from utils.ai_analyzer import AIAnalyzer, ReportGenerator
+try:
+    from utils.ai_analyzer import AIAnalyzer, ReportGenerator
+    AI_AVAILABLE = True
+except Exception as e:
+    print(f"⚠️ AI features not available: {e}")
+    AI_AVAILABLE = False
+    AIAnalyzer = None
+    ReportGenerator = None
 from kicad_ai_allinone import read_bom, read_netlist, load_operating_conditions
 
 # Page configuration
@@ -209,7 +216,13 @@ def analyze_soa(bom_df, operating_conditions):
 
 def run_ai_analysis(project_data, bode_data=None):
     """Run AI analysis on the project"""
+    if not AI_AVAILABLE or not AIAnalyzer:
+        return {"error": "AI features not available"}
+        
     ai_analyzer = AIAnalyzer("google/flan-t5-large", "cpu")
+    
+    if not ai_analyzer.available:
+        return {"error": "AI model failed to load"}
     
     analysis = ai_analyzer.analyze_circuit(
         project_data['project_name'],
@@ -330,7 +343,7 @@ def chat_interface():
         netlist_file = st.file_uploader(
             "Upload Netlist (.net/.xml)",
             type=['net', 'xml'],
-            help="Upload your KiCad netlist file"
+            help="Upload your KiCad netlist file (XML or SPICE .net format)"
         )
         
         bom_file = st.file_uploader(
