@@ -131,7 +131,7 @@ def load_project_files(netlist_file, bom_file, operating_file=None):
                 'netlist': netlist,
                 'bom': bom_df,
                 'operating_conditions': operating_conditions,
-                'project_name': Path(netlist_file.name).stem
+                'project_name': Path(netlist_file.name).stem if hasattr(netlist_file, 'name') else 'project'
             }
     except Exception as e:
         st.error(f"Error loading project files: {str(e)}")
@@ -356,7 +356,7 @@ def chat_interface():
                             f.write(operating_file.getbuffer())
                     
                     # Load project data
-                    project_data = load_project_files(netlist_path, bom_path, operating_path)
+                    project_data = load_project_files(netlist_file, bom_file, operating_file)
                     
                     if project_data:
                         st.session_state.project_data = project_data
