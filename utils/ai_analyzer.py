@@ -299,7 +299,8 @@ class ReportGenerator:
                        netlist: Dict[str, Any],
                        operating_conditions: Dict[str, Dict[str, float]],
                        bode_data: Optional[Dict[str, Any]],
-                       ai_analysis: str) -> str:
+                       ai_analysis: str,
+                       soa_count: int = 0) -> str:
         """
         Generate a comprehensive report
         
@@ -323,7 +324,7 @@ class ReportGenerator:
         
         # Executive Summary
         report.append("## Executive Summary")
-        report.append(self._generate_executive_summary(bom_df, netlist, bode_data))
+        report.append(self._generate_executive_summary(bom_df, netlist, bode_data, soa_count))
         report.append("")
         
         # Circuit Overview
@@ -364,24 +365,25 @@ class ReportGenerator:
         from datetime import datetime
         return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
-    def _generate_executive_summary(self, bom_df: pd.DataFrame, netlist: Dict[str, Any], bode_data: Optional[Dict[str, Any]]) -> str:
+    def _generate_executive_summary(self, bom_df: pd.DataFrame, netlist: Dict[str, Any], bode_data: Optional[Dict[str, Any]], soa_count: int = 0) -> str:
         """Generate executive summary"""
         summary = []
         
-        # Basic stats
-        summary.append(f"- **Total Components:** {len(netlist.get('components', []))}")
+        # Basic stats - use BOM count for unique components
+        summary.append(f"- **Total Components:** {len(bom_df)}")
         summary.append(f"- **Total Nets:** {len(netlist.get('nets', []))}")
         summary.append(f"- **BOM Items:** {len(bom_df)}")
         
-        # SOA compliance
-        soa_checked = sum(1 for _, row in bom_df.iterrows() if row.get('soa_json'))
-        summary.append(f"- **SOA Analyzed:** {soa_checked}/{len(bom_df)} components")
+        # SOA compliance - use passed SOA count
+        summary.append(f"- **SOA Analyzed:** {soa_count}/{len(bom_df)} components")
         
         # Simulation status
         if bode_data and bode_data.get('available'):
             summary.append(f"- **Simulation:** Completed successfully")
             if bode_data.get('crossover_freq'):
                 summary.append(f"- **Crossover Frequency:** {bode_data['crossover_freq']:.2f} Hz")
+        elif bode_data and 'note' in bode_data:
+            summary.append(f"- **Simulation:** {bode_data.get('note', 'Not available')}")
         else:
             summary.append(f"- **Simulation:** Not available")
         

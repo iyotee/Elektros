@@ -195,89 +195,76 @@ def analyze_soa(bom_df, operating_conditions):
     soa_checker = SOAChecker()
     
     soa_results = {}
+    processed_count = 0
+    skipped_count = 0
     
     # Debug: Print BOM info
     print(f"[DEBUG] SOA Analysis: BOM has {len(bom_df)} rows")
     print(f"[DEBUG] BOM columns: {list(bom_df.columns)}")
-    print(f"[DEBUG] BOM first few rows:")
-    print(bom_df.head().to_string())
     print(f"[DEBUG] Operating conditions keys: {list(operating_conditions.keys())}")
     
     for _, row in bom_df.iterrows():
         # Try different possible column names for reference
-        ref = str(row.get('ref', '')).strip()
-        if not ref:
-            # Try alternative column names that KiCad 8 might use
-            ref = str(row.get('reference', '')).strip()
-        if not ref:
-            ref = str(row.get('designator', '')).strip()
-        if not ref:
-            ref = str(row.get('part', '')).strip()
-        if not ref:
-            ref = str(row.get('component', '')).strip()
+        ref = None
+        for col_name in ['ref', 'reference', 'designator', 'part', 'component']:
+            if col_name in row.index:
+                ref = str(row.get(col_name, '')).strip()
+                if ref and ref != 'nan' and ref != '':
+                    break
         
         if not ref:
-            print(f"[DEBUG] Skipping row with empty ref. Available columns: {list(row.index)}")
-            print(f"[DEBUG] Row data: {row.to_dict()}")
+            skipped_count += 1
+            if skipped_count <= 3:  # Only show first 3 skipped rows
+                print(f"[DEBUG] Skipping row {skipped_count}: Available columns: {list(row.index)}")
+                print(f"[DEBUG] Row data: {row.to_dict()}")
             continue
             
-        print(f"[DEBUG] Processing component: {ref}")
+        processed_count += 1
+        print(f"[DEBUG] Processing component {processed_count}: {ref}")
         
-        # Extract SOA from datasheet if available
-        datasheet_path = row.get('datasheet_path', '')
-        soa_data = {}
-        if datasheet_path and os.path.exists(datasheet_path):
-            soa_data = soa_extractor.extract_from_pdf(datasheet_path)
+        # Create estimated SOA data for all components
+        value = str(row.get('value', '')).upper()
+        mpn = str(row.get('mpn', '')).upper()
+        
+        # Estimate SOA based on component characteristics
+        if any(keyword in value for keyword in ['V', 'A', 'W']):
+            soa_data = {
+                'Vds_max': 50.0,
+                'Id_max': 1.0,
+                'Pd_max': 1.0,
+                'Vr_max': 30.0,
+                'If_max': 1.0,
+                'source': 'estimated'
+            }
+        elif any(keyword in mpn for keyword in ['MOSFET', 'TRANSISTOR', 'DIODE']):
+            soa_data = {
+                'Vds_max': 100.0,
+                'Id_max': 2.0,
+                'Pd_max': 2.0,
+                'Vr_max': 50.0,
+                'If_max': 2.0,
+                'source': 'estimated'
+            }
         else:
-            # Create estimated SOA data based on component type and value
-            value = str(row.get('value', '')).upper()
-            mpn = str(row.get('mpn', '')).upper()
-            
-            # Estimate SOA based on component characteristics
-            if any(keyword in value for keyword in ['V', 'A', 'W']):
-                soa_data = {
-                    'Vds_max': 50.0,  # Conservative estimate
-                    'Id_max': 1.0,
-                    'Pd_max': 1.0,
-                    'Vr_max': 30.0,
-                    'If_max': 1.0,
-                    'source': 'estimated'
-                }
-            elif any(keyword in mpn for keyword in ['MOSFET', 'TRANSISTOR', 'DIODE']):
-                soa_data = {
-                    'Vds_max': 100.0,
-                    'Id_max': 2.0,
-                    'Pd_max': 2.0,
-                    'Vr_max': 50.0,
-                    'If_max': 2.0,
-                    'source': 'estimated'
-                }
-            else:
-                soa_data = {
-                    'Vds_max': 30.0,
-                    'Id_max': 0.5,
-                    'Pd_max': 0.5,
-                    'Vr_max': 20.0,
-                    'If_max': 0.5,
-                    'source': 'estimated'
-                }
+            soa_data = {
+                'Vds_max': 30.0,
+                'Id_max': 0.5,
+                'Pd_max': 0.5,
+                'Vr_max': 20.0,
+                'If_max': 0.5,
+                'source': 'estimated'
+            }
         
         # Check compliance
         component_conditions = operating_conditions.get(ref, {})
-        print(f"[DEBUG] Component {ref} conditions: {component_conditions}")
         if not component_conditions:
-            # Use default operating conditions for analysis
             component_conditions = {
                 'voltage': 5.0,
                 'current': 0.1,
                 'power': 0.5
             }
-            print(f"[DEBUG] Using default conditions for {ref}: {component_conditions}")
         
         compliance_results = soa_checker.check_compliance(soa_data, component_conditions)
-        
-        print(f"[DEBUG] Component {ref} SOA data: {soa_data}")
-        print(f"[DEBUG] Component {ref} compliance: {compliance_results}")
         
         soa_results[ref] = {
             'soa_data': soa_data,
@@ -285,7 +272,7 @@ def analyze_soa(bom_df, operating_conditions):
             'compliance': compliance_results
         }
     
-    print(f"[DEBUG] SOA Analysis complete: {len(soa_results)} components analyzed")
+    print(f"[DEBUG] SOA Analysis complete: {processed_count} processed, {skipped_count} skipped")
     return soa_results
 
 def run_simulation(project_data):
@@ -326,8 +313,9 @@ def run_simulation(project_data):
                 except:
                     pass
         
-        # Calculate basic metrics
-        total_components = len(components)
+        # Calculate basic metrics - use BOM count for unique components
+        bom_df = project_data.get('bom', pd.DataFrame())
+        total_components = len(bom_df) if not bom_df.empty else len(components)
         total_nets = len(nets)
         estimated_power = power_consumption if power_consumption > 0 else 0.1  # Default 100mW
         
@@ -387,7 +375,12 @@ def display_component_analysis(component_data, soa_results):
             st.write(f"- MPN: {mpn}")
             
             if 'datasheet' in component_data and component_data['datasheet']:
-                st.write(f"- Datasheet: [Link]({component_data['datasheet']})")
+                datasheet_url = component_data['datasheet']
+                if datasheet_url.startswith('http'):
+                    st.write("- Datasheet:")
+                    st.link_button("📄 Open Datasheet", datasheet_url)
+                else:
+                    st.write(f"- Datasheet: {datasheet_url}")
         
         with col2:
             if ref in soa_results:
@@ -552,6 +545,15 @@ def chat_interface():
                         with st.spinner("Analyzing SOA compliance..."):
                             soa_results = analyze_soa(enriched_bom, project_data['operating_conditions'])
                             st.session_state.analysis_results['soa'] = soa_results
+                            
+                            # Display SOA debug info
+                            st.info(f"🔍 SOA Debug: Found {len(soa_results)} components with SOA data")
+                            if len(soa_results) == 0:
+                                st.warning("⚠️ No SOA data found. Check BOM structure and component references.")
+                                with st.expander("Show BOM Debug Info"):
+                                    st.write("BOM columns:", list(enriched_bom.columns))
+                                    st.write("First 5 rows:")
+                                    st.dataframe(enriched_bom.head())
                         
                         # Run AI analysis
                         with st.spinner("Running AI analysis..."):
@@ -728,13 +730,18 @@ def chat_interface():
             
             if 'ai' in st.session_state.analysis_results:
                 report_generator = ReportGenerator()
+                # Pass SOA results to the report generator
+                soa_count = len(st.session_state.analysis_results.get('soa', {}))
+                simulation_data = st.session_state.analysis_results.get('simulation', {})
+                
                 full_report = report_generator.generate_report(
                     project_data['project_name'],
                     project_data['bom'],
                     project_data['netlist'],
                     project_data['operating_conditions'],
-                    None,  # bode_data
-                    st.session_state.analysis_results['ai']
+                    simulation_data,  # bode_data
+                    st.session_state.analysis_results['ai'],
+                    soa_count  # Add SOA count
                 )
                 
                 st.markdown(full_report)

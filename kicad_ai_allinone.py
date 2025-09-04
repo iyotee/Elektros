@@ -72,8 +72,36 @@ def read_bom(bom_path: str) -> pd.DataFrame:
     print(f"[DEBUG] Original BOM columns: {list(df.columns)}")
     df.columns = [c.strip().lower() for c in df.columns]
     print(f"[DEBUG] Normalized BOM columns: {list(df.columns)}")
+    
+    # Handle KiCad 8 column name variations
+    column_mapping = {
+        'reference': 'ref',
+        'designator': 'ref', 
+        'part': 'ref',
+        'component': 'ref',
+        'part_number': 'mpn',
+        'manufacturer_part_number': 'mpn',
+        'mpn': 'mpn',
+        'quantity': 'qty',
+        'qty': 'qty',
+        'value': 'value',
+        'val': 'value',
+        'datasheet': 'datasheet',
+        'datasheet_url': 'datasheet',
+        'spice_model': 'spice_model_url',
+        'spice_model_url': 'spice_model_url'
+    }
+    
+    # Apply column mapping
+    for old_name, new_name in column_mapping.items():
+        if old_name in df.columns and new_name not in df.columns:
+            df[new_name] = df[old_name]
+            print(f"[DEBUG] Mapped column '{old_name}' to '{new_name}'")
+    
     for col in ("ref","value","mpn","qty","datasheet","spice_model_url"):
-        if col not in df.columns: df[col] = ""
+        if col not in df.columns: 
+            df[col] = ""
+            print(f"[DEBUG] Added missing column: {col}")
     try:
         df["qty"] = df["qty"].fillna(1).astype(int)
     except:
@@ -95,7 +123,9 @@ def read_netlist(netlist_path: str) -> Dict[str, Any]:
             ref = c.get("ref") or ""
             value = c.findtext("value") or ""
             fp = c.findtext("footprint") or ""
-            comps.append({"ref": ref, "value": value, "footprint": fp})
+            # Determine component type from reference
+            comp_type = ref[0].upper() if ref else 'X'
+            comps.append({"ref": ref, "value": value, "footprint": fp, "type": comp_type})
 
         # Find nets
         for n in root.findall(".//net"):
