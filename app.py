@@ -116,10 +116,18 @@ def load_project_files(netlist_file, bom_file, operating_file=None):
                 with open(operating_path, "wb") as f:
                     f.write(operating_file.getbuffer())
             
+            # Check if files exist and are readable
+            if not os.path.exists(netlist_path):
+                raise FileNotFoundError(f"Netlist file not found: {netlist_path}")
+            if not os.path.exists(bom_path):
+                raise FileNotFoundError(f"BOM file not found: {bom_path}")
+            
             # Read netlist
+            st.info(f"Reading netlist: {netlist_file.name}")
             netlist = read_netlist(netlist_path)
             
             # Read BOM
+            st.info(f"Reading BOM: {bom_file.name}")
             bom_df = read_bom(bom_path)
             
             # Read operating conditions if provided
@@ -134,7 +142,9 @@ def load_project_files(netlist_file, bom_file, operating_file=None):
                 'project_name': Path(netlist_file.name).stem if hasattr(netlist_file, 'name') else 'project'
             }
     except Exception as e:
+        import traceback
         st.error(f"Error loading project files: {str(e)}")
+        st.error(f"Full error: {traceback.format_exc()}")
         return None
 
 def enrich_bom_with_apis(bom_df, api_manager):
