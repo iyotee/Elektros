@@ -1,0 +1,11 @@
+ref,value,mpn,manufacturer,qty,datasheet,spice_model_url
+R1,10k,RC0603FR-0710KL,YAGEO,1,,
+R2,1k,RC0603FR-071KL,YAGEO,1,,
+C1,100nF,GRM188R71C104KA01D,Murata,1,,
+C2,10uF,GRM188R61C106MA73D,Murata,1,,
+Q1,IRF540N,IRF540NPBF,Infineon,1,,
+D1,1N4148,1N4148W-7-F,Diodes Incorporated,1,,
+U1,LM358,LM358N,STMicroelectronics,1,,
+U2,7805,LM7805CT,STMicroelectronics,1,,
+L1,100uH,7447709100,Würth Elektronik,1,,
+J1,Conn_01x02,Conn_01x02_Generic,Generic,1,,

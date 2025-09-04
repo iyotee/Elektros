@@ -1,0 +1,81 @@
+# KiCad AI Interactive Chat Configuration
+
+# Application settings
+app:
+  title: "KiCad AI Interactive Chat"
+  icon: "🔌"
+  layout: "wide"
+  theme: "light"
+
+# API Configuration
+api:
+  nexar:
+    access_token: "eyJhbGciOiJSUzI1NiIsImtpZCI6IjA5NzI5QTkyRDU0RDlERjIyRDQzMENBMjNDNkI4QjJFIiwidHlwIjoiYXQrand0In0.eyJuYmYiOjE3NTY5ODU4NjUsImV4cCI6MTc1NzA3MjI2NSwiaXNzIjoiaHR0cHM6Ly9pZGVudGl0eS5uZXhhci5jb20iLCJjbGllbnRfaWQiOiIxODEwYjk4ZC02NTYyLTQ5ZDgtOTNkMy0yMjM5NzFiZjZjZGMiLCJzdWIiOiJFNTIzREVBNy1BODU2LTRFRTUtQjM0Ny03RUI3OEE3N0E0NEUiLCJhdXRoX3RpbWUiOjE3NTY5ODU2OTAsImlkcCI6Ikdvb2dsZSIsInByaXZhdGVfY2xhaW1zX2lkIjoiZjhjNTcxYzctMDM1Mi00YjFkLWI5ZjYtYjQ1NTFiOGI3MjcwIiwicHJpdmF0ZV9jbGFpbXNfc2VjcmV0IjoibnNnNytsZG5RZ2tIMDlpcnJGN2xxQzVzb3RncEx5MVVTaGdOaWhOVktoWT0iLCJqdGkiOiI2NTdFMDFGRjU2NjUxRUY4M0YyNjVCRkE4NTYxOTI4NyIsInNpZCI6IjczRjNGRDBBNjFEQjk3MzRCNzQ1REQyN0VBMEY1NzNDIiwiaWF0IjoxNzU2OTg1ODY1LCJzY29wZSI6WyJvcGVuaWQiLCJ1c2VyLmFjY2VzcyIsInByb2ZpbGUiLCJlbWFpbCIsInVzZXIuZGV0YWlscyIsImRlc2lnbi5kb21haW4iLCJzdXBwbHkuZG9tYWluIl0sImFtciI6WyJleHRlcm5hbCJdfQ.eqCuD2fTetsg7yXAESGQEah5vONruj4zBlB_Vb0jAroIjl14bdpwRzWrC8nzdl7SkMSr8nPp3tGaO6hacuPGCSPdbS5vRoBMZM_Yh8b4m70IAzeDUevZiqtdGMSsIlvw4TzGZ6LLTr60cHg8hPPAuYr4h7j5gYr1axbycFvBU-2hQ2Sr09AnF_g_gKyLmNjOrfx_8UMIK5U5Y18goBKZvr-dWQPkK-MVy0deLAraj2GI6SqWCX9NHk2sLG5sSWhNLHecJl-WuNSjJexqpWfiArH7XwcU3nFaBCxxIJGrHs3ARhszeCbwc84pA5GFo3iM_PCW8JAdI9sPmj6aK6BdQQ"
+    base_url: "https://api.nexar.com"
+    timeout: 15
+  
+  mouser:
+    enabled: true
+    api_key: "7b994823-8625-4774-a4c6-bb16b95cc7e5"
+    base_url: "https://api.mouser.com/api/v1"
+    timeout: 15
+
+# AI Model Configuration
+ai:
+  default_model: "google/flan-t5-large"
+  device: "cpu"
+  max_tokens: 1000
+  temperature: 0.4
+  top_p: 0.9
+
+# File Upload Settings
+upload:
+  max_file_size: 50  # MB
+  allowed_extensions:
+    netlist: [".net", ".xml"]
+    bom: [".csv", ".xml"]
+    operating: [".yaml", ".yml"]
+    spice: [".cir", ".spice", ".lib"]
+
+# Analysis Settings
+analysis:
+  soa:
+    safety_margin: 0.8
+    extract_patterns:
+      Vds_max: "(?:Vds|Drain[-\s]?Source\s*Voltage)[^\n]*?(\\d+\\.?\\d*)\\s*V"
+      Id_max: "(?:Id|Drain\s*Current)[^\n]*?(\\d+\\.?\\d*)\\s*A"
+      Pd_max: "(?:P[dD]|Power\s*Dissipation)[^\n]*?(\\d+\\.?\\d*)\\s*W"
+      Vr_max: "(?:Vr|Reverse\s*Voltage)[^\n]*?(\\d+\\.?\\d*)\\s*V"
+      If_max: "(?:If|Forward\s*Current)[^\n]*?(\\d+\\.?\\d*)\\s*A"
+  
+  simulation:
+    bode:
+      start_frequency_hz: 1.0
+      stop_frequency_hz: 1000000.0
+      points_per_decade: 50
+      input_node: "in"
+      output_node: "out"
+
+# UI Settings
+ui:
+  theme:
+    primary_color: "#1f77b4"
+    background_color: "#ffffff"
+    secondary_background_color: "#f0f2f6"
+    text_color: "#262730"
+  
+  chat:
+    max_messages: 100
+    auto_scroll: true
+  
+  components:
+    show_soa_warnings: true
+    show_price_info: true
+    show_availability: true
+
+# Logging
+logging:
+  level: "INFO"
+  file: "kicad_ai_chat.log"
+  max_size: 10  # MB
+  backup_count: 5

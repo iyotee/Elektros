@@ -1,0 +1,34 @@
+# Example operating conditions for components
+# This file defines the expected operating conditions for each component reference
+
+# Power MOSFET example
+Q1:
+  Vds_max: 48.0    # Maximum drain-source voltage (V)
+  Id_max: 10.0     # Maximum drain current (A)
+  Pd_max: 5.0      # Maximum power dissipation (W)
+
+# Diode example
+D3:
+  Vr_max: 60.0     # Maximum reverse voltage (V)
+  If_max: 2.0      # Maximum forward current (A)
+
+# Voltage regulator example
+U3:
+  Vout_target: 5.0 # Target output voltage (V)
+  Iout_max: 1.0    # Maximum output current (A)
+
+# Resistor example
+R1:
+  P_max: 0.25      # Maximum power rating (W)
+  V_max: 50.0      # Maximum voltage across resistor (V)
+
+# Capacitor example
+C1:
+  V_max: 25.0      # Maximum voltage rating (V)
+  I_ripple_max: 0.1 # Maximum ripple current (A)
+
+# Transistor example
+Q2:
+  Vce_max: 30.0    # Maximum collector-emitter voltage (V)
+  Ic_max: 0.5      # Maximum collector current (A)
+  P_max: 0.5       # Maximum power dissipation (W)

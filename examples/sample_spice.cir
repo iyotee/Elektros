@@ -1,0 +1,30 @@
+* Sample SPICE netlist for Bode simulation
+* Generated from KiCad schematic
+
+* Power supply
+V1 VCC 0 DC 12V
+V2 GND 0 DC 0V
+
+* Input signal
+VIN IN 0 AC 1V
+
+* Components
+R1 VCC C1_N 10k
+C1 C1_N GND 100nF
+R2 IN U1_IN 1k
+C2 VCC GND 10uF
+
+* Op-amp (simplified model)
+* Note: This is a basic model - real simulation would use proper op-amp subcircuit
+E1 OUT GND U1_IN GND 100000
+
+* MOSFET (simplified model)
+* Note: This is a basic model - real simulation would use proper MOSFET subcircuit
+M1 OUT GATE GND GND NMOS W=100u L=10u
+
+* Load
+RL OUT GND 1k
+
+* Analysis
+.AC DEC 50 1 1MEG
+.END
