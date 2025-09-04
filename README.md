@@ -2,15 +2,16 @@
 
 ![KiCad AI Chat](logo.png)
 
-> **Application Windows interactive pour l'analyse de circuits électroniques KiCad avec IA**
+> **Application multiplateforme interactive pour l'analyse de circuits électroniques KiCad avec IA**
 
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://python.org)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.28+-red.svg)](https://streamlit.io)
+[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](https://github.com/iyotee/Elektros)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 ## 🚀 Description
 
-KiCad AI Interactive Chat est une application Windows moderne qui combine l'analyse de circuits électroniques avec l'intelligence artificielle. L'application permet d'analyser automatiquement vos projets KiCad, d'enrichir les BOM avec des données API, et de discuter avec une IA spécialisée pour obtenir des insights et recommandations.
+KiCad AI Interactive Chat est une application multiplateforme moderne qui combine l'analyse de circuits électroniques avec l'intelligence artificielle. L'application fonctionne sur Windows, macOS, Linux et même Raspberry Pi, permettant d'analyser automatiquement vos projets KiCad, d'enrichir les BOM avec des données API, et de discuter avec une IA spécialisée pour obtenir des insights et recommandations.
 
 ## ✨ Fonctionnalités Principales
 
@@ -38,10 +39,10 @@ KiCad AI Interactive Chat est une application Windows moderne qui combine l'anal
 ## 🛠️ Installation
 
 ### Prérequis
-- **Windows 10/11**
+- **Système d'exploitation** : Windows 10/11, macOS 10.15+, Linux (Ubuntu 18.04+)
 - **Python 3.10+** ([Télécharger](https://python.org))
 - **4GB RAM** minimum, 8GB recommandé
-- **Connexion Internet** pour les APIs
+- **Connexion Internet** pour les APIs (optionnel)
 
 ### Installation Rapide
 
@@ -53,15 +54,54 @@ KiCad AI Interactive Chat est une application Windows moderne qui combine l'anal
 
 2. **Installer les dépendances** :
    ```bash
+   # Windows
    pip install -r requirements_web.txt
+   
+   # macOS/Linux
+   pip3 install -r requirements_web.txt
    ```
 
 3. **Lancer l'application** :
    ```bash
+   # Windows
    python run_app.py
+   
+   # macOS/Linux
+   python3 run_app.py
    ```
 
 4. **Ouvrir dans le navigateur** : `http://localhost:8501`
+
+### 🌐 Déploiement Web (Optionnel)
+
+L'application peut être déployée sur le web :
+
+#### **Streamlit Cloud (Gratuit)**
+1. Fork ce repository
+2. Connectez-vous à [share.streamlit.io](https://share.streamlit.io)
+3. Déployez directement depuis GitHub
+
+#### **Heroku (Gratuit)**
+```bash
+# Créer un Procfile
+echo "web: streamlit run app.py --server.port=$PORT --server.address=0.0.0.0" > Procfile
+
+# Déployer
+git add Procfile
+git commit -m "Add Procfile for Heroku"
+git push heroku main
+```
+
+#### **Docker (Universel)**
+```bash
+# Créer un Dockerfile
+FROM python:3.10-slim
+COPY . /app
+WORKDIR /app
+RUN pip install -r requirements_web.txt
+EXPOSE 8501
+CMD ["streamlit", "run", "app.py", "--server.address=0.0.0.0"]
+```
 
 ## 🚀 Utilisation
 
@@ -125,6 +165,24 @@ Modifiez `web_config.yaml` pour :
 - Ajuster les paramètres d'analyse
 - Configurer les APIs
 - Personnaliser l'interface
+
+## 🖥️ Systèmes Supportés
+
+### **Desktop**
+- ✅ **Windows** 10/11 (x64, ARM64)
+- ✅ **macOS** 10.15+ (Intel, Apple Silicon)
+- ✅ **Linux** Ubuntu 18.04+, Debian, CentOS, Fedora
+- ✅ **Raspberry Pi** OS (ARM64)
+
+### **Cloud/Web**
+- ✅ **Streamlit Cloud** (déploiement gratuit)
+- ✅ **Heroku** (déploiement gratuit)
+- ✅ **Railway** (déploiement gratuit)
+- ✅ **Docker** (conteneurisation universelle)
+
+### **Mobile/Tablet**
+- ✅ **Accès web** depuis n'importe quel navigateur
+- ✅ **Interface responsive** adaptée aux écrans tactiles
 
 ## 🎯 Cas d'Usage
 
