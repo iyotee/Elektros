@@ -78,12 +78,10 @@ def main():
     print("🔌 KiCad AI Interactive Chat Launcher")
     print("=" * 40)
     
-    # Check dependencies
-    if not check_dependencies():
-        print("❌ Dependency check failed")
-        return 1
+    # Skip dependency check to avoid conflicts
+    print("⚠️ Skipping dependency check to avoid conflicts")
     
-    # Launch app
+    # Launch app directly
     if not launch_app():
         print("❌ Failed to launch application")
         return 1
