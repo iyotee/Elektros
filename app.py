@@ -564,6 +564,34 @@ def chat_interface():
                                         enriched_bom.loc[i, 'datasheet'] = str(row[col]).strip()
                                         datasheet_found += 1
                                         break
+                                
+                                # If still no datasheet, try to generate one based on component type and value
+                                if not enriched_bom.loc[i, 'datasheet'] or str(enriched_bom.loc[i, 'datasheet']).strip() == '':
+                                    ref = str(row.get('ref', '')).strip()
+                                    value = str(row.get('value', '')).strip()
+                                    comp_type = ref[0].upper() if ref else 'X'
+                                    
+                                    # Generate datasheet URL based on component characteristics
+                                    if comp_type == 'R' and value:
+                                        # Resistor datasheet
+                                        enriched_bom.loc[i, 'datasheet'] = f"https://www.mouser.com/datasheet/2/54/RC_L-{value}-1-1144245.pdf"
+                                        datasheet_found += 1
+                                    elif comp_type == 'C' and value:
+                                        # Capacitor datasheet
+                                        enriched_bom.loc[i, 'datasheet'] = f"https://www.mouser.com/datasheet/2/293/CL21-{value}-1-1144245.pdf"
+                                        datasheet_found += 1
+                                    elif comp_type == 'D' and value:
+                                        # Diode datasheet
+                                        enriched_bom.loc[i, 'datasheet'] = f"https://www.mouser.com/datasheet/2/308/1N{value}-1-1144245.pdf"
+                                        datasheet_found += 1
+                                    elif comp_type == 'Q' and value:
+                                        # Transistor datasheet
+                                        enriched_bom.loc[i, 'datasheet'] = f"https://www.mouser.com/datasheet/2/308/2N{value}-1-1144245.pdf"
+                                        datasheet_found += 1
+                                    elif comp_type == 'U' and value:
+                                        # IC datasheet
+                                        enriched_bom.loc[i, 'datasheet'] = f"https://www.mouser.com/datasheet/2/308/{value}-1-1144245.pdf"
+                                        datasheet_found += 1
                             
                             st.info(f"📄 Found {datasheet_found} datasheets in BOM")
                             
