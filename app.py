@@ -198,12 +198,27 @@ def analyze_soa(bom_df, operating_conditions):
     
     # Debug: Print BOM info
     print(f"[DEBUG] SOA Analysis: BOM has {len(bom_df)} rows")
+    print(f"[DEBUG] BOM columns: {list(bom_df.columns)}")
+    print(f"[DEBUG] BOM first few rows:")
+    print(bom_df.head().to_string())
     print(f"[DEBUG] Operating conditions keys: {list(operating_conditions.keys())}")
     
     for _, row in bom_df.iterrows():
+        # Try different possible column names for reference
         ref = str(row.get('ref', '')).strip()
         if not ref:
-            print(f"[DEBUG] Skipping row with empty ref: {row.to_dict()}")
+            # Try alternative column names that KiCad 8 might use
+            ref = str(row.get('reference', '')).strip()
+        if not ref:
+            ref = str(row.get('designator', '')).strip()
+        if not ref:
+            ref = str(row.get('part', '')).strip()
+        if not ref:
+            ref = str(row.get('component', '')).strip()
+        
+        if not ref:
+            print(f"[DEBUG] Skipping row with empty ref. Available columns: {list(row.index)}")
+            print(f"[DEBUG] Row data: {row.to_dict()}")
             continue
             
         print(f"[DEBUG] Processing component: {ref}")

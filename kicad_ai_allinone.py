@@ -69,7 +69,9 @@ def read_bom(bom_path: str) -> pd.DataFrame:
         df = pd.DataFrame(rows)
     else:
         raise ValueError("Unsupported BOM format (CSV or XML expected).")
+    print(f"[DEBUG] Original BOM columns: {list(df.columns)}")
     df.columns = [c.strip().lower() for c in df.columns]
+    print(f"[DEBUG] Normalized BOM columns: {list(df.columns)}")
     for col in ("ref","value","mpn","qty","datasheet","spice_model_url"):
         if col not in df.columns: df[col] = ""
     try:
